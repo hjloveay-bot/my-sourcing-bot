@@ -2,8 +2,8 @@ name: Coupang Item Scraper
 
 on:
   schedule:
-    - cron: '0 0 * * *' # 매일 한국 시간 오전 9시 실행
-  workflow_dispatch: # 수동 실행 버튼 활성화
+    - cron: '0 0 * * *'
+  workflow_dispatch:
 
 jobs:
   build:
@@ -19,7 +19,7 @@ jobs:
 
       - name: 라이브러리 설치
         run: |
-          pip install playwright pandas python-stealth
+          pip install playwright pandas playwright-stealth
           playwright install chromium
 
       - name: 스크레이퍼 실행
@@ -29,6 +29,6 @@ jobs:
         run: |
           git config --global user.name "Scraper-Bot"
           git config --global user.email "bot@github.com"
-          git add coupang_items.csv
-          git commit -m "Update scraped data $(date)" || echo "No changes to commit"
+          git add coupang_items.csv || echo "No file to add"
+          git commit -m "Update data $(date)" || echo "No changes"
           git push
