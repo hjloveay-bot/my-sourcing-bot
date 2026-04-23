@@ -1,48 +1,50 @@
 import asyncio
 from playwright.async_api import async_playwright
-from python_stealth import stealth_async
+from playwright_stealth import stealth_async
 import pandas as pd
 import datetime
 
 async def scrape_coupang():
     async with async_playwright() as p:
-        # 브라우저 실행 (차단 방지를 위해 Stealth 모드 적용)
         browser = await p.chromium.launch(headless=True)
+        # 차단 방지를 위한 설정 강화
         context = await browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
         )
         page = await context.new_page()
         
-        # 쿠팡 주방용품 베스트 카테고리 예시
+        # [핵심] 스텔스 모드 실제 적용
+        await stealth_async(page)
+        
+        # 쿠팡 주방용품 카테고리
         url = "https://www.coupang.com/np/categories/185669" 
-        await page.goto(url)
-        await page.wait_for_timeout(3000)
+        try:
+            await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            await asyncio.sleep(5) # 사람처럼 기다리기
 
-        # 데이터 추출 로직
-        items = await page.query_selector_all(".category-product-item")
-        data = []
+            items = await page.query_selector_all(".category-product-item")
+            data = []
 
-        for item in items[:50]: # 상위 50개만
-            try:
+            for item in items[:30]: # 안정성을 위해 우선 30개만
                 name = await item.query_selector(".name")
                 price = await item.query_selector(".price-value")
-                rating = await item.query_selector(".rating")
-                reviews = await item.query_selector(".rating-total-count")
                 
-                data.append({
-                    "상품명": await name.inner_text() if name else "N/A",
-                    "가격": await price.inner_text() if price else "0",
-                    "별점": await rating.inner_text() if rating else "0",
-                    "리뷰수": await reviews.inner_text() if reviews else "(0)",
-                    "수집일": datetime.datetime.now().strftime("%Y-%m-%d")
-                })
-            except Exception as e:
-                continue
+                if name and price:
+                    data.append({
+                        "상품명": (await name.inner_text()).strip(),
+                        "가격": (await price.inner_text()).replace(",", ""),
+                        "수집일": datetime.datetime.now().strftime("%Y-%m-%d")
+                    })
 
-        # CSV 저장
-        df = pd.DataFrame(data)
-        df.to_csv("coupang_items.csv", index=False, encoding="utf-8-sig")
-        print("수집 완료: coupang_items.csv 저장됨")
+            if data:
+                df = pd.DataFrame(data)
+                df.to_csv("coupang_items.csv", index=False, encoding="utf-8-sig")
+                print(f"성공: {len(data)}개의 상품을 수집했습니다.")
+            else:
+                print("데이터를 찾지 못했습니다. 구조가 변경되었을 수 있습니다.")
+
+        except Exception as e:
+            print(f"에러 발생: {e}")
         
         await browser.close()
 
